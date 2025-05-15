@@ -19,6 +19,7 @@ body {
 }
 
 .input-group {
+    position: relative;
     margin-bottom: 20px;
     display: flex;
     flex-direction: column;
@@ -172,4 +173,33 @@ canvas {
     margin: 0 0 20px 0;
     font-size: 32px;
     text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+}
+
+.emoji-dropdown {
+    position: absolute;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 200px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    z-index: 1000;
+    display: none;
+    top: 100%;
+    left: 12px;  /* Match textarea padding */
+}
+
+.emoji-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.emoji-item:hover {
+    background-color: #f0f0f0;
+}
+
+.emoji-item.selected {
+    background-color: #e3f2fd;
 } 

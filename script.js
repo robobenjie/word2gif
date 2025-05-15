@@ -16,6 +16,10 @@ let isPlaying = false;
 let timings = [];
 let recordStartTime;
 let playbackInterval;
+let previewInterval;
+let emojiDropdown = null;
+let isEmojiSearchActive = false;
+let currentEmojiSearch = '';
 
 function getCurrentWord() {
     const words = wordInput.value.split(' ').filter(word => word.trim() !== '');
@@ -33,7 +37,27 @@ function stopPlayback() {
     isPlaying = false;
 }
 
+function startPreview() {
+    if (isRecording) return;
+    
+    // Clear any existing interval
+    stopPreview();
+    
+    previewInterval = setInterval(() => {
+        currentWordIndex = (currentWordIndex + 1) % (wordInput.value.split(' ').filter(word => word.trim() !== '').length || 1);
+        updateCanvas();
+    }, 1000);
+}
+
+function stopPreview() {
+    if (previewInterval) {
+        clearInterval(previewInterval);
+        previewInterval = null;
+    }
+}
+
 function startRecording() {
+    stopPreview();
     isRecording = true;
     timings = [];
     currentWordIndex = 0;
@@ -220,6 +244,7 @@ function showCanvas() {
     canvas.style.display = 'block';
     gifOutput.style.display = 'none';
     downloadButton.style.display = 'none';
+    startPreview();
 }
 
 // Update the click handlers
@@ -248,6 +273,7 @@ recordButton.addEventListener('click', () => {
 wordInput.addEventListener('input', () => {
     showCanvas();
     updateCanvas();  // Uses default canvas argument
+    startPreview();
 });
 
 // Add event listeners
@@ -277,4 +303,203 @@ fontFamily.addEventListener('change', () => {
 });
 
 // Initial render
-updateCanvas(); 
+updateCanvas();
+
+// Start initial preview
+startPreview();
+
+function createEmojiDropdown() {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'emoji-dropdown';
+    return dropdown;
+}
+
+function processEmojiData(data) {
+    const emojiMap = {};
+    const lines = data.split('\n');
+    
+    lines.forEach(line => {
+        if (!line.trim()) return;
+        
+        try {
+            const [emoji, keywords] = line.split(':').map(s => s.trim());
+            if (!emoji || !keywords) return;
+            
+            // Remove quotes and curly braces
+            const cleanEmoji = emoji.replace(/["{}/]/g, '').trim();
+            const cleanKeywords = keywords.replace(/["{}/]/g, '').trim();
+            
+            // Split keywords by | and clean them
+            const keywordList = cleanKeywords.split('|').map(k => k.trim());
+            
+            // Add each keyword as a key pointing to this emoji
+            keywordList.forEach(keyword => {
+                if (keyword) {
+                    emojiMap[keyword.toLowerCase()] = cleanEmoji;
+                }
+            });
+            
+            // Also add the emoji itself as a key
+            emojiMap[cleanEmoji] = cleanEmoji;
+        } catch (e) {
+            console.error('Error processing line:', line, e);
+        }
+    });
+    
+    return emojiMap;
+}
+
+// Load and process the emoji data
+fetch('emoji.txt')
+    .then(response => response.text())
+    .then(data => {
+        window.emojiList = processEmojiData(data);
+    })
+    .catch(error => {
+        console.error('Error loading emoji data:', error);
+        // Fallback to basic emoji list if loading fails
+        window.emojiList = {
+            'smile': '😊',
+            'laugh': '😂',
+            'heart': '❤️',
+            'fire': '🔥',
+            'thumbsup': '👍'
+        };
+    });
+
+function updateEmojiDropdown(searchText) {
+    if (!emojiDropdown) {
+        emojiDropdown = createEmojiDropdown();
+        wordInput.parentNode.appendChild(emojiDropdown);
+    }
+
+    // Don't show dropdown if no search text after colon
+    if (!searchText) {
+        emojiDropdown.style.display = 'none';
+        return;
+    }
+
+    const searchLower = searchText.toLowerCase();
+    
+    // Get unique emojis matching the search
+    const matches = new Set();
+    const results = [];
+    
+    // Search through all keywords
+    Object.entries(window.emojiList).forEach(([keyword, emoji]) => {
+        if (keyword.toLowerCase().includes(searchLower) && !matches.has(emoji)) {
+            matches.add(emoji);
+            results.push([keyword, emoji]);
+        }
+    });
+
+    // Sort results by keyword length, then alphabetically for same lengths
+    results.sort((a, b) => {
+        const lenDiff = a[0].length - b[0].length;
+        return lenDiff !== 0 ? lenDiff : a[0].localeCompare(b[0]);
+    });
+
+    // Take the first 10 unique results
+    const uniqueResults = results.slice(0, 10);
+
+    if (uniqueResults.length === 0) {
+        emojiDropdown.style.display = 'none';
+        return;
+    }
+
+    emojiDropdown.innerHTML = '';
+    uniqueResults.forEach(([keyword, emoji], index) => {
+        const item = document.createElement('div');
+        item.className = 'emoji-item' + (index === 0 ? ' selected' : '');
+        item.innerHTML = `${emoji} :${keyword}:`;
+        item.onclick = () => selectEmoji(emoji);
+        emojiDropdown.appendChild(item);
+    });
+
+    // Position the dropdown below the textarea
+    const inputRect = wordInput.getBoundingClientRect();
+    emojiDropdown.style.display = 'block';
+}
+
+function selectEmoji(emoji) {
+    const beforeColon = wordInput.value.slice(0, wordInput.value.lastIndexOf(':'));
+    wordInput.value = beforeColon + emoji + ' ';
+    emojiDropdown.style.display = 'none';
+    isEmojiSearchActive = false;
+    currentEmojiSearch = '';
+    wordInput.focus();
+    wordInput.dispatchEvent(new Event('input'));
+}
+
+function getSelectedEmojiItem() {
+    return emojiDropdown?.querySelector('.emoji-item.selected');
+}
+
+wordInput.addEventListener('keydown', (e) => {
+    if (!isEmojiSearchActive || !emojiDropdown) return;
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const selectedItem = getSelectedEmojiItem();
+        if (selectedItem) {
+            const emoji = selectedItem.textContent.split(' ')[0];
+            selectEmoji(emoji);
+        }
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = emojiDropdown.querySelectorAll('.emoji-item');
+        const currentSelected = getSelectedEmojiItem();
+        const currentIndex = Array.from(items).indexOf(currentSelected);
+        let newIndex = currentIndex;
+
+        if (e.key === 'ArrowDown') {
+            newIndex = (currentIndex + 1) % items.length;
+        } else {
+            newIndex = (currentIndex - 1 + items.length) % items.length;
+        }
+
+        currentSelected?.classList.remove('selected');
+        items[newIndex].classList.add('selected');
+    }
+});
+
+wordInput.addEventListener('keyup', (e) => {
+    const cursorPosition = wordInput.selectionStart;
+    const textBeforeCursor = wordInput.value.slice(0, cursorPosition);
+    
+    // Check if we just typed a colon
+    const justTypedColon = textBeforeCursor.endsWith(':');
+    const isStartOfWord = cursorPosition === 1 || textBeforeCursor.slice(-2, -1) === ' ';
+
+    if (justTypedColon && !isEmojiSearchActive && isStartOfWord) {
+        isEmojiSearchActive = true;
+        currentEmojiSearch = '';
+        updateEmojiDropdown(currentEmojiSearch);
+    } else if (isEmojiSearchActive) {
+        if (e.key === 'Escape') {
+            isEmojiSearchActive = false;
+            if (emojiDropdown) emojiDropdown.style.display = 'none';
+        } else if (e.key === ' ') {
+            isEmojiSearchActive = false;
+            if (emojiDropdown) emojiDropdown.style.display = 'none';
+        } else if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+            const lastColonIndex = textBeforeCursor.lastIndexOf(':');
+            if (lastColonIndex >= 0) {
+                currentEmojiSearch = textBeforeCursor.slice(lastColonIndex + 1);
+                updateEmojiDropdown(currentEmojiSearch);
+            } else {
+                // We've somehow lost our colon, close the dropdown
+                isEmojiSearchActive = false;
+                if (emojiDropdown) emojiDropdown.style.display = 'none';
+            }
+        }
+    }
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (emojiDropdown && !wordInput.contains(e.target) && !emojiDropdown.contains(e.target)) {
+        emojiDropdown.style.display = 'none';
+        isEmojiSearchActive = false;
+    }
+}); 
