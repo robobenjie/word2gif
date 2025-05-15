@@ -169,9 +169,12 @@ function updateCanvas(targetCanvas = canvas) {
         fontSize = Math.floor(fontSize * scale);
         targetCtx.font = `${fontSize}px ${fontFamily.value}`;
         
-        // Draw the text
+        // Check if word is a single emoji (most emoji are 2 chars long)
+        const isSingleEmoji = word.length <= 2 && (/\p{Emoji}/u.test(word) || word[0] === 'I');
+        
+        // Draw the text - use lower position only for emoji
         targetCtx.fillStyle = textColor.value;
-        targetCtx.fillText(word, width / 2, height / 2);
+        targetCtx.fillText(word, width / 2, isSingleEmoji ? height * 0.6 : height / 2);
     }
 }
 
