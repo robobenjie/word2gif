@@ -3,9 +3,12 @@ const widthInput = document.getElementById('widthInput');
 const heightInput = document.getElementById('heightInput');
 const canvas = document.getElementById('canvas');
 const recordButton = document.getElementById('recordButton');
-const gifButton = document.getElementById('gifButton');
 const gifOutput = document.getElementById('gifOutput');
+const downloadButton = document.getElementById('downloadButton');
 const ctx = canvas.getContext('2d');
+const bgColor = document.getElementById('bgColor');
+const textColor = document.getElementById('textColor');
+const fontFamily = document.getElementById('fontFamily');
 
 let currentWordIndex = 0;
 let isRecording = false;
@@ -37,6 +40,14 @@ function startRecording() {
     recordStartTime = Date.now();
     recordButton.textContent = 'Next Word';
     recordButton.classList.add('recording');
+    
+    // Show canvas, hide gif output when starting new recording
+    canvas.style.display = 'block';
+    gifOutput.style.display = 'none';
+    
+    // Hide download button when starting new recording
+    downloadButton.style.display = 'none';
+    
     updateCanvas();
 }
 
@@ -59,7 +70,7 @@ function finishRecording() {
     isRecording = false;
     recordButton.textContent = 'Record Timing';
     recordButton.classList.remove('recording');
-    startPlayback();
+    createGif();
 }
 
 function startPlayback() {
@@ -105,8 +116,8 @@ function updateCanvas(targetCanvas = canvas) {
     targetCanvas.width = width;
     targetCanvas.height = height;
     
-    // Fill white background
-    targetCtx.fillStyle = 'white';
+    // Fill background
+    targetCtx.fillStyle = bgColor.value;
     targetCtx.fillRect(0, 0, width, height);
     
     if (word) {
@@ -116,7 +127,7 @@ function updateCanvas(targetCanvas = canvas) {
         
         // Start with a large font size
         let fontSize = 100;
-        targetCtx.font = `${fontSize}px Arial`;
+        targetCtx.font = `${fontSize}px ${fontFamily.value}`;
         
         // Measure text
         let textMetrics = targetCtx.measureText(word);
@@ -132,10 +143,10 @@ function updateCanvas(targetCanvas = canvas) {
         
         // Set final font size
         fontSize = Math.floor(fontSize * scale);
-        targetCtx.font = `${fontSize}px Arial`;
+        targetCtx.font = `${fontSize}px ${fontFamily.value}`;
         
         // Draw the text
-        targetCtx.fillStyle = 'black';
+        targetCtx.fillStyle = textColor.value;
         targetCtx.fillText(word, width / 2, height / 2);
     }
 }
@@ -154,9 +165,6 @@ function createGif() {
         height: parseInt(heightInput.value) || 64,
         workerScript: 'gif.worker.js'
     });
-
-    // Stop any current playback
-    stopPlayback();
 
     // Prepare for GIF creation
     const words = wordInput.value.split(' ').filter(word => word.trim() !== '');
@@ -195,17 +203,23 @@ function createGif() {
         const img = document.createElement('img');
         img.src = URL.createObjectURL(blob);
         gifOutput.appendChild(img);
-        
-        // Create and add the download button
-        const downloadButton = document.createElement('a');
+
+        // Update download button
         downloadButton.href = img.src;
-        // Get first 100 chars of text for filename
         const filename = wordInput.value.slice(0, 100).trim().replace(/[^a-z0-9]/gi, '_') + '.gif';
         downloadButton.download = filename;
-        downloadButton.className = 'download-button';
-        downloadButton.textContent = 'Download GIF';
-        gifOutput.appendChild(downloadButton);
+        downloadButton.style.display = 'block';
+
+        // Hide canvas and show gif output
+        canvas.style.display = 'none';
+        gifOutput.style.display = 'block';
     });
+}
+
+function showCanvas() {
+    canvas.style.display = 'block';
+    gifOutput.style.display = 'none';
+    downloadButton.style.display = 'none';
 }
 
 // Update the click handlers
@@ -230,16 +244,37 @@ recordButton.addEventListener('click', () => {
     }
 });
 
-gifButton.addEventListener('click', createGif);
-
 // Update the text input event listener to use default canvas
 wordInput.addEventListener('input', () => {
+    showCanvas();
     updateCanvas();  // Uses default canvas argument
 });
 
 // Add event listeners
-widthInput.addEventListener('input', updateCanvas);
-heightInput.addEventListener('input', updateCanvas);
+widthInput.addEventListener('input', () => {
+    showCanvas();
+    updateCanvas();
+});
+
+heightInput.addEventListener('input', () => {
+    showCanvas();
+    updateCanvas();
+});
+
+bgColor.addEventListener('input', () => {
+    showCanvas();
+    updateCanvas();
+});
+
+textColor.addEventListener('input', () => {
+    showCanvas();
+    updateCanvas();
+});
+
+fontFamily.addEventListener('change', () => {
+    showCanvas();
+    updateCanvas();
+});
 
 // Initial render
 updateCanvas(); 
